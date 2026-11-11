@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100 select-none">
+<html lang="en" class="min-h-screen bg-slate-950 text-slate-100 select-none">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,11 +27,6 @@
         }
     </script>
     <style>
-        /* Hide scrollbars for full immersion */
-        body {
-            overflow: hidden;
-            touch-action: none;
-        }
         /* Fade transitions for control panel */
         .controls-fade {
             transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out, visibility 0.4s;
@@ -52,10 +47,10 @@
         }
     </style>
 </head>
-<body class="h-full w-full flex flex-col justify-between items-center relative font-sans antialiased">
+<body class="min-h-screen w-full flex flex-col justify-between items-center relative font-sans antialiased overflow-x-hidden">
 
     <!-- Canvas Animation Area -->
-    <canvas id="emdrCanvas" class="absolute inset-0 w-full h-full z-0 block"></canvas>
+    <canvas id="emdrCanvas" class="fixed inset-0 w-full h-full -z-10 block"></canvas>
 
     <!-- Top Status Bar & Quick Indicators -->
     <header id="topBar" class="controls-fade z-10 w-full p-4 md:p-6 flex justify-between items-center max-w-7xl mx-auto">
@@ -107,7 +102,7 @@
     <div id="centerGuide" class="absolute left-1/2 top-0 bottom-0 w-[1px] bg-slate-800/40 pointer-events-none z-0"></div>
 
     <!-- Main Control Dock (Bottom Center) -->
-    <main id="controlDock" class="controls-fade z-10 w-full max-w-4xl px-4 pb-6 md:pb-8">
+    <main id="controlDock" class="controls-fade z-10 w-full max-w-4xl px-4 pb-6 md:pb-8 mt-auto">
         <div class="glass-panel rounded-3xl p-5 md:p-6 space-y-5">
             
             <!-- Primary Action Bar -->
@@ -409,6 +404,14 @@
             if (!audioCtx) {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AudioContext();
+                
+                // Silent buffer to unlock audio engine on iOS/Mobile Safari
+                const unlockSource = audioCtx.createBufferSource();
+                unlockSource.buffer = audioCtx.createBuffer(1, 1, 22050);
+                unlockSource.connect(audioCtx.destination);
+                if (unlockSource.start) {
+                    unlockSource.start(0);
+                }
             }
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
@@ -478,7 +481,6 @@
 
             if (isRunning) {
                 // Calculate progress delta
-                // Frequency (Hz) means full cycles per second. Speed factor:
                 const speed = config.speedHz * 2; // 2 direction swaps per cycle
                 const step = speed * deltaTime;
 
@@ -488,13 +490,12 @@
                 if (progress >= 1.0) {
                     progress = 1.0;
                     direction = -1;
-                    passes++;
-                    updatePassDisplay();
+                    // Note: 'passes++' removed from here so a pass is only counted on a full back-and-forth cycle
                     playBilateralSound(1.0); // Right Ear Sound
                 } else if (progress <= 0.0) {
                     progress = 0.0;
                     direction = 1;
-                    passes++;
+                    passes++; // Counts as 1 full back-and-forth cycle
                     updatePassDisplay();
                     playBilateralSound(-1.0); // Left Ear Sound
                 }
