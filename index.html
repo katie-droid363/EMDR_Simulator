@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100 select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMDR Bilateral Stimulation Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#131c2e',
+                            950: '#090d16',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Hide scrollbars for full immersion */
+        body {
+            overflow: hidden;
+            touch-action: none;
+        }
+        /* Fade transitions for control panel */
+        .controls-fade {
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out, visibility 0.4s;
+        }
+        .controls-hidden {
+            opacity: 0 !important;
+            transform: translateY(16px) scale(0.98) !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+        /* Glassmorphism panel styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body class="h-full w-full flex flex-col justify-between items-center relative font-sans antialiased">
+
+    <!-- Canvas Animation Area -->
+    <canvas id="emdrCanvas" class="absolute inset-0 w-full h-full z-0 block"></canvas>
+
+    <!-- Top Status Bar & Quick Indicators -->
+    <header id="topBar" class="controls-fade z-10 w-full p-4 md:p-6 flex justify-between items-center max-w-7xl mx-auto">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+                <i data-lucide="eye" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-semibold text-base md:text-lg tracking-wide text-slate-200">EMDR Visual Therapy</h1>
+                <p class="text-xs text-slate-400 hidden sm:block">Bilateral Stimulation Simulator</p>
+            </div>
+        </div>
+
+        <!-- Session Status Pill -->
+        <div class="flex items-center gap-4 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-4 py-2 rounded-full text-xs font-medium">
+            <div class="flex items-center gap-2">
+                <span id="statusIndicator" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                <span id="statusText" class="text-slate-300">Ready</span>
+            </div>
+            <div class="h-3 w-[1px] bg-slate-700"></div>
+            <div class="flex items-center gap-1.5 text-slate-300">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span id="timerDisplay" class="font-mono text-sm">00:00</span>
+            </div>
+            <div class="h-3 w-[1px] bg-slate-700 hidden sm:block"></div>
+            <div class="hidden sm:flex items-center gap-1.5 text-slate-400">
+                <span>Passes:</span>
+                <span id="passCounter" class="font-mono text-slate-200 font-semibold">0</span>
+            </div>
+        </div>
+
+        <!-- Utility & Toggle Buttons -->
+        <div class="flex items-center gap-2">
+            <!-- Explicit Control Panel Toggle Button -->
+            <button id="toggleControlsBtn" title="Toggle Controls & Settings" class="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 border border-indigo-500/30 rounded-xl text-white text-xs font-medium transition-all shadow-lg shadow-indigo-600/20">
+                <i data-lucide="sliders" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Controls</span>
+            </button>
+            <button id="guideBtn" title="Help & Info" class="p-2.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 transition-colors">
+                <i data-lucide="help-circle" class="w-5 h-5"></i>
+            </button>
+            <button id="fullscreenBtn" title="Toggle Fullscreen" class="p-2.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 transition-colors">
+                <i data-lucide="maximize" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Center Screen Guide Line Indicator (Optional Subtle Guide) -->
+    <div id="centerGuide" class="absolute left-1/2 top-0 bottom-0 w-[1px] bg-slate-800/40 pointer-events-none z-0"></div>
+
+    <!-- Main Control Dock (Bottom Center) -->
+    <main id="controlDock" class="controls-fade z-10 w-full max-w-4xl px-4 pb-6 md:pb-8">
+        <div class="glass-panel rounded-3xl p-5 md:p-6 space-y-5">
+            
+            <!-- Primary Action Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+                
+                <!-- Play / Pause / Reset -->
+                <div class="flex items-center gap-3">
+                    <button id="startPauseBtn" class="flex items-center justify-center gap-2.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium rounded-2xl shadow-lg shadow-indigo-600/30 transition-all transform hover:scale-[1.02]">
+                        <i id="startPauseIcon" data-lucide="play" class="w-5 h-5 fill-current"></i>
+                        <span id="startPauseText" class="text-sm tracking-wide">Start Session</span>
+                    </button>
+                    <button id="resetBtn" title="Reset Session" class="p-3 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-800 border border-slate-700/50 text-slate-300 rounded-2xl transition-colors">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Speed Control & Display -->
+                <div class="flex-1 min-w-[240px] bg-slate-900/60 rounded-2xl p-3 border border-slate-800/60 flex items-center gap-4">
+                    <i data-lucide="gauge" class="w-5 h-5 text-indigo-400 shrink-0"></i>
+                    <div class="flex-1 space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-medium">Speed / Frequency</span>
+                            <span id="speedValueDisplay" class="font-mono text-indigo-300 font-semibold">1.0 Hz (60 BPM)</span>
+                        </div>
+                        <input id="speedSlider" type="range" min="0.2" max="3.0" step="0.1" value="1.0" class="w-full cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Toggle Settings Menu -->
+                <button id="toggleSettingsBtn" class="p-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 text-slate-300 rounded-2xl transition-colors flex items-center gap-2 text-xs font-medium">
+                    <i data-lucide="sliders" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Customize</span>
+                </button>
+            </div>
+
+            <!-- Settings Grid (Expandable or Always visible tabbed layout) -->
+            <div id="settingsPanel" class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1 text-xs">
+                
+                <!-- Column 1: Motion & Geometry -->
+                <div class="space-y-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/40">
+                    <h2 class="font-semibold text-slate-300 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <i data-lucide="move-horizontal" class="w-4 h-4 text-sky-400"></i> Motion & Layout
+                    </h2>
+                    
+                    <!-- Path Width Slider -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-slate-400">
+                            <span>Screen Span Width</span>
+                            <span id="widthValueDisplay" class="font-mono text-slate-200">80%</span>
+                        </div>
+                        <input id="widthSlider" type="range" min="40" max="95" step="5" value="80" class="w-full">
+                    </div>
+
+                    <!-- Target Size Slider -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-slate-400">
+                            <span>Target Size</span>
+                            <span id="sizeValueDisplay" class="font-mono text-slate-200">40px</span>
+                        </div>
+                        <input id="sizeSlider" type="range" min="15" max="90" step="5" value="40" class="w-full">
+                    </div>
+
+                    <!-- Movement Style Pattern -->
+                    <div class="space-y-1.5">
+                        <label class="text-slate-400 block">Motion Curve</label>
+                        <select id="easingSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="smooth">Smooth Natural (Sine Ease)</option>
+                            <option value="linear">Constant Speed (Linear)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Column 2: Visual Styles & Themes -->
+                <div class="space-y-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/40">
+                    <h2 class="font-semibold text-slate-300 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <i data-lucide="palette" class="w-4 h-4 text-emerald-400"></i> Appearance
+                    </h2>
+
+                    <!-- Color Preset Selector -->
+                    <div class="space-y-1.5">
+                        <label class="text-slate-400 block">Target Color</label>
+                        <div class="grid grid-cols-5 gap-2" id="colorPickerGroup">
+                            <button data-color="#38bdf8" data-glow="rgba(56,189,248,0.6)" class="color-btn h-8 rounded-xl bg-sky-400 ring-2 ring-white/80 transition-all"></button>
+                            <button data-color="#34d399" data-glow="rgba(52,211,153,0.6)" class="color-btn h-8 rounded-xl bg-emerald-400 hover:opacity-90 transition-all"></button>
+                            <button data-color="#a78bfa" data-glow="rgba(167,139,250,0.6)" class="color-btn h-8 rounded-xl bg-purple-400 hover:opacity-90 transition-all"></button>
+                            <button data-color="#fbbf24" data-glow="rgba(251,191,36,0.6)" class="color-btn h-8 rounded-xl bg-amber-400 hover:opacity-90 transition-all"></button>
+                            <button data-color="#f87171" data-glow="rgba(248,113,113,0.6)" class="color-btn h-8 rounded-xl bg-red-400 hover:opacity-90 transition-all"></button>
+                        </div>
+                    </div>
+
+                    <!-- Target Style -->
+                    <div class="space-y-1.5">
+                        <label class="text-slate-400 block">Target Style</label>
+                        <select id="targetStyleSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="glow">Glowing Orb (Recommended)</option>
+                            <option value="solid">Solid Crisp Circle</option>
+                            <option value="ring">Soft Neon Ring</option>
+                        </select>
+                    </div>
+
+                    <!-- Background Tone -->
+                    <div class="space-y-1.5">
+                        <label class="text-slate-400 block">Background Tone</label>
+                        <select id="bgStyleSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="#090d16">Deep Charcoal Night</option>
+                            <option value="#020617">Pitch Black</option>
+                            <option value="#0f172a">Slate Blue</option>
+                            <option value="#051c14">Calming Forest Dark</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Column 3: Audio & Session Duration -->
+                <div class="space-y-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/40">
+                    <h2 class="font-semibold text-slate-300 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <i data-lucide="volume-2" class="w-4 h-4 text-purple-400"></i> Bilateral Audio
+                    </h2>
+
+                    <!-- Audio Toggle & Sound Type -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Stereo Audio Panning</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="audioToggle" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        
+                        <select id="soundTypeSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="sine">Gentle Sine Tone (440Hz)</option>
+                            <option value="soft">Soft Harmonic Beep</option>
+                            <option value="click">Subtle Wood Click</option>
+                        </select>
+                    </div>
+
+                    <!-- Session Timer Select -->
+                    <div class="space-y-1.5 pt-1">
+                        <label class="text-slate-400 block">Session Duration</label>
+                        <select id="sessionTimerSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                            <option value="0">Continuous / Open</option>
+                            <option value="30">30 Seconds</option>
+                            <option value="60">1 Minute</option>
+                            <option value="120">2 Minutes</option>
+                            <option value="300">5 Minutes</option>
+                        </select>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Footer Hint / Shortcuts -->
+            <div class="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/40">
+                <div class="flex items-center gap-4">
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-300 font-mono">Space</kbd> Play/Pause</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-300 font-mono">F</kbd> Fullscreen</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-300 font-mono">↑ / ↓</kbd> Speed</span>
+                </div>
+                <div class="text-slate-400">
+                    Controls auto-hide during movement. Move cursor to reveal.
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Instructional Modal -->
+    <div id="guideModal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 md:p-8 space-y-6 border border-slate-700/60 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                        <i data-lucide="info" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-slate-100">About EMDR Simulation</h3>
+                </div>
+                <button id="closeModalBtn" class="p-2 text-slate-400 hover:text-slate-200 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-xs md:text-sm text-slate-300 leading-relaxed">
+                <p>
+                    <strong>EMDR (Eye Movement Desensitization and Reprocessing)</strong> visual stimulation encourages bilateral brain activity by guiding the eyes horizontally back and forth.
+                </p>
+                <div class="bg-slate-900/80 p-4 rounded-2xl space-y-2 border border-slate-800">
+                    <div class="font-medium text-indigo-300 flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> How to use:
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400 text-xs">
+                        <li>Sit comfortably with your head still, centered in front of the screen.</li>
+                        <li>Follow the moving target smoothly with your eyes only.</li>
+                        <li>Adjust speed and span width to a comfortable rhythm that doesn't cause eye strain.</li>
+                        <li>Use stereo headphones if enabling Bilateral Audio for enhanced synchronization.</li>
+                    </ul>
+                </div>
+                <p class="text-xs text-slate-400 italic">
+                    Note: This tool is intended for self-regulation, wellness, or certified clinical session support. It is not a substitute for professional mental health therapy.
+                </p>
+            </div>
+
+            <div class="pt-2">
+                <button id="closeModalBtn2" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-colors">
+                    Understood & Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- LUCIDE ICONS INIT ---
+        lucide.createIcons();
+
+        // --- DOM ELEMENTS ---
+        const canvas = document.getElementById('emdrCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Controls
+        const startPauseBtn = document.getElementById('startPauseBtn');
+        const startPauseIcon = document.getElementById('startPauseIcon');
+        const startPauseText = document.startPauseText || document.getElementById('startPauseText');
+        const resetBtn = document.getElementById('resetBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValueDisplay = document.getElementById('speedValueDisplay');
+        const widthSlider = document.getElementById('widthSlider');
+        const widthValueDisplay = document.getElementById('widthValueDisplay');
+        const sizeSlider = document.getElementById('sizeSlider');
+        const sizeValueDisplay = document.getElementById('sizeValueDisplay');
+        const easingSelect = document.getElementById('easingSelect');
+        const targetStyleSelect = document.getElementById('targetStyleSelect');
+        const bgStyleSelect = document.getElementById('bgStyleSelect');
+        const audioToggle = document.getElementById('audioToggle');
+        const soundTypeSelect = document.getElementById('soundTypeSelect');
+        const sessionTimerSelect = document.getElementById('sessionTimerSelect');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const guideBtn = document.getElementById('guideBtn');
+        const guideModal = document.getElementById('guideModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const closeModalBtn2 = document.getElementById('closeModalBtn2');
+        const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+
+        // Status Displays
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const passCounterDisplay = document.getElementById('passCounter');
+        const topBar = document.getElementById('topBar');
+        const controlDock = document.getElementById('controlDock');
+
+        // --- STATE MANAGEMENT ---
+        let isRunning = false;
+        let animationFrameId = null;
+        let lastTimestamp = 0;
+        
+        // Motion State
+        let progress = 0.5; // 0 (left) to 1 (right)
+        let direction = 1; // 1 = moving right, -1 = moving left
+        let passes = 0;
+
+        // Settings State
+        let config = {
+            speedHz: 1.0, // Full cycles (left-right-left) per second
+            pathWidthPercent: 0.80,
+            targetRadius: 20,
+            easing: 'smooth',
+            targetColor: '#38bdf8',
+            targetGlow: 'rgba(56,189,248,0.6)',
+            targetStyle: 'glow',
+            bgColor: '#090d16',
+            audioEnabled: false,
+            soundType: 'sine',
+            sessionDurationSeconds: 0 // 0 = continuous
+        };
+
+        // Timer State
+        let sessionElapsedMs = 0;
+        let sessionInterval = null;
+
+        // UI Panel Visibility State (Strict Click Toggle)
+        let isControlPanelVisible = true;
+
+        // Web Audio API Context
+        let audioCtx = null;
+
+        // --- RESIZE & CANVAS SETUP ---
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- AUDIO ENGINE (Web Audio API) ---
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBilateralSound(panSide) {
+            if (!config.audioEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            let panner = null;
+
+            // Stereo Panner Setup
+            if (audioCtx.createStereoPanner) {
+                panner = audioCtx.createStereoPanner();
+                panner.pan.setValueAtTime(panSide, now); // -1.0 for Left, 1.0 for Right
+            }
+
+            // Sound Type Synthesis
+            if (config.soundType === 'sine') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.exponentialRampToValueAtTime(0.15, now + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.13);
+            } else if (config.soundType === 'soft') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, now);
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.exponentialRampToValueAtTime(0.2, now + 0.03);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (config.soundType === 'click') {
+                // Short organic click/woodblock tap simulation
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.03);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                osc.start(now);
+                osc.stop(now + 0.035);
+            }
+
+            // Routing
+            if (panner) {
+                osc.connect(gain);
+                gain.connect(panner);
+                panner.connect(audioCtx.destination);
+            } else {
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+            }
+        }
+
+        // --- ANIMATION LOOP ---
+        function render(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const deltaTime = (timestamp - lastTimestamp) / 1000; // in seconds
+            lastTimestamp = timestamp;
+
+            if (isRunning) {
+                // Calculate progress delta
+                // Frequency (Hz) means full cycles per second. Speed factor:
+                const speed = config.speedHz * 2; // 2 direction swaps per cycle
+                const step = speed * deltaTime;
+
+                progress += direction * step;
+
+                // Handle Boundary Bounce & Sound Trigger
+                if (progress >= 1.0) {
+                    progress = 1.0;
+                    direction = -1;
+                    passes++;
+                    updatePassDisplay();
+                    playBilateralSound(1.0); // Right Ear Sound
+                } else if (progress <= 0.0) {
+                    progress = 0.0;
+                    direction = 1;
+                    passes++;
+                    updatePassDisplay();
+                    playBilateralSound(-1.0); // Left Ear Sound
+                }
+            }
+
+            // Draw Canvas Background & Target
+            drawScreen();
+
+            animationFrameId = requestAnimationFrame(render);
+        }
+
+        function drawScreen() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Fill Background
+            ctx.fillStyle = config.bgColor;
+            ctx.fillRect(0, 0, width, height);
+
+            // Compute Horizontal Span Bounds
+            const spanWidth = width * config.pathWidthPercent;
+            const leftBound = (width - spanWidth) / 2;
+            const rightBound = leftBound + spanWidth;
+
+            // Apply Easing to Progress for visual smoothness
+            let visualProgress = progress;
+            if (config.easing === 'smooth') {
+                // Sine easing for natural slowing at edges
+                visualProgress = (1 - Math.cos(progress * Math.PI)) / 2;
+            }
+
+            // Calculate Target Position
+            const targetX = leftBound + visualProgress * spanWidth;
+            const targetY = height / 2;
+
+            // Draw Target
+            ctx.save();
+
+            if (config.targetStyle === 'glow') {
+                // Radial Gradient Glow
+                const gradient = ctx.createRadialGradient(
+                    targetX, targetY, config.targetRadius * 0.2,
+                    targetX, targetY, config.targetRadius * 2.2
+                );
+                gradient.addColorStop(0, config.targetColor);
+                gradient.addColorStop(0.5, config.targetGlow);
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, config.targetRadius * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Core Dot
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, config.targetRadius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else if (config.targetStyle === 'solid') {
+                // Crisp Solid Circle
+                ctx.fillStyle = config.targetColor;
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, config.targetRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else if (config.targetStyle === 'ring') {
+                // Soft Neon Ring
+                ctx.strokeStyle = config.targetColor;
+                ctx.lineWidth = 4;
+                ctx.shadowColor = config.targetColor;
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, config.targetRadius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // --- SESSION CONTROL FUNCTIONS ---
+        function startSession() {
+            if (isRunning) return;
+            initAudio();
+            isRunning = true;
+            lastTimestamp = performance.now();
+
+            // UI Updates
+            startPauseBtn.classList.replace('bg-indigo-600', 'bg-amber-600');
+            startPauseBtn.classList.replace('hover:bg-indigo-500', 'hover:bg-amber-500');
+            startPauseIcon.setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+            startPauseText.textContent = 'Pause';
+
+            statusIndicator.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+            statusText.textContent = 'Active';
+
+            // Start Session Timer
+            startTimer();
+        }
+
+        function pauseSession() {
+            if (!isRunning) return;
+            isRunning = false;
+
+            // UI Updates
+            startPauseBtn.classList.replace('bg-amber-600', 'bg-indigo-600');
+            startPauseBtn.classList.replace('hover:bg-amber-500', 'hover:bg-indigo-500');
+            startPauseIcon.setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+            startPauseText.textContent = 'Resume';
+
+            statusIndicator.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+            statusText.textContent = 'Paused';
+
+            // Pause Timer
+            clearInterval(sessionInterval);
+        }
+
+        function resetSession() {
+            pauseSession();
+            progress = 0.5;
+            passes = 0;
+            sessionElapsedMs = 0;
+            updateTimerDisplay();
+            updatePassDisplay();
+            
+            startPauseText.textContent = 'Start Session';
+            statusIndicator.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+            statusText.textContent = 'Ready';
+
+            drawScreen();
+        }
+
+        function updatePassDisplay() {
+            passCounterDisplay.textContent = passes;
+        }
+
+        // --- TIMER MANAGEMENT ---
+        function startTimer() {
+            clearInterval(sessionInterval);
+            const startTime = Date.now() - sessionElapsedMs;
+
+            sessionInterval = setInterval(() => {
+                sessionElapsedMs = Date.now() - startTime;
+                updateTimerDisplay();
+
+                // Check Session Auto-Stop Condition
+                if (config.sessionDurationSeconds > 0) {
+                    if (sessionElapsedMs >= config.sessionDurationSeconds * 1000) {
+                        pauseSession();
+                        statusText.textContent = 'Completed';
+                        statusIndicator.className = 'w-2.5 h-2.5 rounded-full bg-indigo-400';
+                        playCompletionNotification();
+                    }
+                }
+            }, 200);
+        }
+
+        function updateTimerDisplay() {
+            const totalSeconds = Math.floor(sessionElapsedMs / 1000);
+            const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const secs = (totalSeconds % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        function playCompletionNotification() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            osc.frequency.setValueAtTime(659.25, now + 0.15); // E5
+            osc.frequency.setValueAtTime(783.99, now + 0.3); // G5
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.65);
+        }
+
+        // --- CONTROL PANEL VISIBILITY TOGGLE (STRICTLY VIA CLICK) ---
+        const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+
+        function toggleControlPanel(show) {
+            if (typeof show === 'boolean') {
+                isControlPanelVisible = show;
+            } else {
+                isControlPanelVisible = !isControlPanelVisible;
+            }
+
+            if (isControlPanelVisible) {
+                controlDock.classList.remove('controls-hidden');
+            } else {
+                controlDock.classList.add('controls-hidden');
+            }
+        }
+
+        toggleControlsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleControlPanel();
+        });
+
+        // --- EVENT LISTENERS & CONTROL BINDINGS ---
+
+        // Play / Pause Toggle
+        startPauseBtn.addEventListener('click', () => {
+            if (isRunning) {
+                pauseSession();
+            } else {
+                startSession();
+            }
+        });
+
+        resetBtn.addEventListener('click', resetSession);
+
+        // Speed Slider
+        speedSlider.addEventListener('input', (e) => {
+            config.speedHz = parseFloat(e.target.value);
+            const bpm = Math.round(config.speedHz * 60);
+            speedValueDisplay.textContent = `${config.speedHz.toFixed(1)} Hz (${bpm} BPM)`;
+        });
+
+        // Path Width Slider
+        widthSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            config.pathWidthPercent = val / 100;
+            widthValueDisplay.textContent = `${val}%`;
+            if (!isRunning) drawScreen();
+        });
+
+        // Target Size Slider
+        sizeSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            config.targetRadius = val / 2;
+            sizeValueDisplay.textContent = `${val}px`;
+            if (!isRunning) drawScreen();
+        });
+
+        // Easing Select
+        easingSelect.addEventListener('change', (e) => {
+            config.easing = e.target.value;
+        });
+
+        // Style & Theme Selectors
+        targetStyleSelect.addEventListener('change', (e) => {
+            config.targetStyle = e.target.value;
+            if (!isRunning) drawScreen();
+        });
+
+        bgStyleSelect.addEventListener('change', (e) => {
+            config.bgColor = e.target.value;
+            if (!isRunning) drawScreen();
+        });
+
+        // Color Picker Group
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-white/80'));
+                btn.classList.add('ring-2', 'ring-white/80');
+                config.targetColor = btn.getAttribute('data-color');
+                config.targetGlow = btn.getAttribute('data-glow');
+                if (!isRunning) drawScreen();
+            });
+        });
+
+        // Audio Toggle
+        audioToggle.addEventListener('change', (e) => {
+            config.audioEnabled = e.target.checked;
+            if (config.audioEnabled) {
+                initAudio();
+                playBilateralSound(0); // Test sample sound
+            }
+        });
+
+        soundTypeSelect.addEventListener('change', (e) => {
+            config.soundType = e.target.value;
+            if (config.audioEnabled) playBilateralSound(0);
+        });
+
+        // Session Duration Select
+        sessionTimerSelect.addEventListener('change', (e) => {
+            config.sessionDurationSeconds = parseInt(e.target.value);
+        });
+
+        // Toggle Settings Panel Collapse
+        let settingsExpanded = true;
+        toggleSettingsBtn.addEventListener('click', () => {
+            settingsExpanded = !settingsExpanded;
+            if (settingsExpanded) {
+                settingsPanel.classList.remove('hidden');
+            } else {
+                settingsPanel.classList.add('hidden');
+            }
+        });
+
+        // Fullscreen Toggle
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // Modal Guide Controls
+        guideBtn.addEventListener('click', () => {
+            guideModal.classList.remove('opacity-0', 'pointer-events-none');
+        });
+        const closeModal = () => guideModal.classList.add('opacity-0', 'pointer-events-none');
+        closeModalBtn.addEventListener('click', closeModal);
+        closeModalBtn2.addEventListener('click', closeModal);
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                startPauseBtn.click();
+            } else if (e.code === 'KeyF') {
+                fullscreenBtn.click();
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                const newVal = Math.min(3.0, config.speedHz + 0.1);
+                speedSlider.value = newVal;
+                speedSlider.dispatchEvent(new Event('input'));
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                const newVal = Math.max(0.2, config.speedHz - 0.1);
+                speedSlider.value = newVal;
+                speedSlider.dispatchEvent(new Event('input'));
+            }
+        });
+
+        // --- INIT FIRST FRAME ---
+        animationFrameId = requestAnimationFrame(render);
+
+    </script>
+</body>
+</html>
